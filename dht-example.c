@@ -17,6 +17,9 @@
 #include <netdb.h>
 #include <sys/signal.h>
 
+#include <openssl/sha.h>
+#include <openssl/rand.h>
+
 #include "dht.h"
 
 #define MAX_BOOTSTRAP_NODES 20
@@ -419,62 +422,42 @@ dht_blacklisted(const struct sockaddr *sa, int salen)
 
 /* We need to provide a reasonably strong cryptographic hashing function.
    Here's how we'd do it if we had RSA's MD5 code. */
-#if 0
 void
 dht_hash(void *hash_return, int hash_size,
          const void *v1, int len1,
          const void *v2, int len2,
          const void *v3, int len3)
 {
-    static MD5_CTX ctx;
-    MD5Init(&ctx);
-    MD5Update(&ctx, v1, len1);
-    MD5Update(&ctx, v2, len2);
-    MD5Update(&ctx, v3, len3);
-    MD5Final(&ctx);
-    if(hash_size > 16)
-        memset((char*)hash_return + 16, 0, hash_size - 16);
-    memcpy(hash_return, ctx.digest, hash_size > 16 ? 16 : hash_size);
+	SHA_CTX sha;
+    
+    SHA1_Init(&sha);
+    SHA1_Update(&sha, v1, len1);
+    SHA1_Update(&sha, v2, len2);
+    SHA1_Update(&sha, v3, len3);
+    
+    SHA1_Final(hash_return, &sha);
 }
-#else
-/* But for this example, we might as well use something weaker. */
-void
-dht_hash(void *hash_return, int hash_size,
-         const void *v1, int len1,
-         const void *v2, int len2,
-         const void *v3, int len3)
-{
-    const char *c1 = v1, *c2 = v2, *c3 = v3;
-    char key[9];                /* crypt is limited to 8 characters */
-    int i;
 
-    memset(key, 0, 9);
-#define CRYPT_HAPPY(c) ((c % 0x60) + 0x20)
-
-    for(i = 0; i < 2 && i < len1; i++)
-        key[i] = CRYPT_HAPPY(c1[i]);
-    for(i = 0; i < 4 && i < len1; i++)
-        key[2 + i] = CRYPT_HAPPY(c2[i]);
-    for(i = 0; i < 2 && i < len1; i++)
-        key[6 + i] = CRYPT_HAPPY(c3[i]);
-    strncpy(hash_return, crypt(key, "jc"), hash_size);
-}
-#endif
 
 int
 dht_random_bytes(void *buf, size_t size)
 {
     int fd, rc, save;
+    
+	rc = RAND_pseudo_bytes(buf, size);
+	if(rc != 1) {
+		fprintf(stderr, "Failed loading random data from OpenSSL, using /dev/urandom\n");
+		fd = open("/dev/urandom", O_RDONLY);
+		if(fd < 0)
+			return -1;
 
-    fd = open("/dev/urandom", O_RDONLY);
-    if(fd < 0)
-        return -1;
+		rc = read(fd, buf, size);
+		
+		save = errno;
+		close(fd);
+		errno = save;
 
-    rc = read(fd, buf, size);
-
-    save = errno;
-    close(fd);
-    errno = save;
+	}
 
     return rc;
 }
