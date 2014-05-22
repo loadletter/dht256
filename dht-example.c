@@ -71,9 +71,11 @@ init_signals(void)
     sigaction(SIGINT, &sa, NULL);
 }
 
-const unsigned char hash[20] = {
+const unsigned char hash[32] = {
     0x54, 0x57, 0x87, 0x89, 0xdf, 0xc4, 0x23, 0xee, 0xf6, 0x03,
-    0x1f, 0x81, 0x94, 0xa9, 0x3a, 0x16, 0x98, 0x8b, 0x72, 0x7b
+    0x1f, 0x81, 0x94, 0xa9, 0x3a, 0x16, 0x98, 0x8b, 0x72, 0x7b,
+    0x1f, 0x81, 0x94, 0xa9, 0x3a, 0x16, 0x98, 0x8b, 0x72, 0x7b,
+    0x1f, 0x81
 };
 
 /* The call-back function is called by the DHT whenever something
@@ -99,7 +101,7 @@ main(int argc, char **argv)
     int i, rc, fd;
     int s = -1, s6 = -1, port;
     int have_id = 0;
-    unsigned char myid[20];
+    unsigned char myid[32];
     time_t tosleep = 0;
     char *id_file = "dht-example.id";
     int opt;
@@ -155,8 +157,8 @@ main(int argc, char **argv)
        something. */
     fd = open(id_file, O_RDONLY);
     if(fd >= 0) {
-        rc = read(fd, myid, 20);
-        if(rc == 20)
+        rc = read(fd, myid, 32);
+        if(rc == 32)
             have_id = 1;
         close(fd);
     }
@@ -170,7 +172,7 @@ main(int argc, char **argv)
     if(!have_id) {
         int ofd;
 
-        rc = read(fd, myid, 20);
+        rc = read(fd, myid, 32);
         if(rc < 0) {
             perror("read(random)");
             exit(1);
@@ -180,8 +182,8 @@ main(int argc, char **argv)
 
         ofd = open(id_file, O_WRONLY | O_CREAT | O_TRUNC, 0666);
         if(ofd >= 0) {
-            rc = write(ofd, myid, 20);
-            if(rc < 20)
+            rc = write(ofd, myid, 32);
+            if(rc < 32)
                 unlink(id_file);
             close(ofd);
         }
@@ -421,21 +423,21 @@ dht_blacklisted(const struct sockaddr *sa, int salen)
 }
 
 /* We need to provide a reasonably strong cryptographic hashing function.
-   Here's how we'd do it if we had RSA's MD5 code. */
+   Here's how we'd do it if we had OpenSSL's SHA256 code. */
 void
 dht_hash(void *hash_return, int hash_size,
          const void *v1, int len1,
          const void *v2, int len2,
          const void *v3, int len3)
 {
-	SHA_CTX sha;
+	SHA256_CTX sha;
     
-    SHA1_Init(&sha);
-    SHA1_Update(&sha, v1, len1);
-    SHA1_Update(&sha, v2, len2);
-    SHA1_Update(&sha, v3, len3);
+    SHA256_Init(&sha);
+    SHA256_Update(&sha, v1, len1);
+    SHA256_Update(&sha, v2, len2);
+    SHA256_Update(&sha, v3, len3);
     
-    SHA1_Final(hash_return, &sha);
+    SHA256_Final(hash_return, &sha);
 }
 
 
